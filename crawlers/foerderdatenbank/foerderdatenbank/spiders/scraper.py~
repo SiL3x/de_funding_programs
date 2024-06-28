@@ -1,0 +1,44 @@
+import scrapy
+import re
+from bs4 import BeautifulSoup
+
+
+class ScraperSpider(scrapy.Spider):
+    name = "scraper"
+    allowed_domains = ["www.foerderdatenbank.de"]
+    start_urls = ["https://www.foerderdatenbank.de/SiteGlobals/FDB/Forms/Suche/Expertensuche_Formular.html?resourceId=c4b4dbf3-4c29-4e70-9465-1f1783a8f117&input_=bd101467-e52a-4850-931d-5e2a691629e5&pageLocale=de&filterCategories=FundingProgram&filterCategories.GROUP=1&templateQueryString=&submit=Suchen"]
+    n=0
+    
+    def parse(self, response):
+        # get funding programs
+        programs = response.css(".card.card--horizontal.card--fundingprogram")
+
+        for program in programs:
+            program_url = program.css("a::attr(href)").extract_first()
+            req = scrapy.Request(response.urljoin(program_url), callback=self.sub_parse)
+            req.meta["name"] = program.css("a::text").extract_first()
+            yield req
+
+        # process next result page
+        next_page = response.css("a.forward::attr(href)").get()
+
+        if next_page:
+            yield scrapy.Request(response.urljoin(next_page), callback=self.parse)
+
+    def sub_parse(self, response):
+        values = response.css("dd::text").getall()
+        keys = [x.replace(" ", "") for x in response.css("dt::text").getall()]
+        infos = dict(zip(keys, values))  # infos zu förderart, wer, ansprechpartner etc
+        text_html = response.css(".content--main").get()
+        text = BeautifulSoup(text_html, 'html.parser').get_text()
+        
+        yield {
+            "name": BeautifulSoup(response.css(".title").get(), 'html.parser').get_text(),  # Förderprogramm name
+            "Beschreibung": text,
+            "Förderart:": infos["Förderart:"],
+            "Förderbereich:": infos["Förderbereich:"],
+            "Fördergebiet:": infos["Fördergebiet:"],
+            "Förderberechtigte:": infos["Förderberechtigte:"],
+            "Ansprechpunkt:": infos["Ansprechpunkt:"],
+        }
+

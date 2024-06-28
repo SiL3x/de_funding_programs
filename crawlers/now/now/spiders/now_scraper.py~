@@ -1,0 +1,10 @@
+import scrapy
+
+
+class NowScraperSpider(scrapy.Spider):
+    name = "now_scraper"
+    allowed_domains = ["www.now-gmbh.de"]
+    start_urls = ["https://www.now-gmbh.de/foerderung/foerderfinder/"]
+
+    def parse(self, response):
+        pass

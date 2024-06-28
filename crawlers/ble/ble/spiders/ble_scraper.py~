@@ -1,0 +1,45 @@
+import scrapy
+
+
+class BleScraperSpider(scrapy.Spider):
+    name = "ble_scraper"
+    allowed_domains = ["service.ble.de"]
+    start_urls = ["https://service.ble.de/ptdb/index2.php?site_key=141"]
+
+    def parse(self, response):
+        # get programs
+        programs = response.css("a.RichTextIntLink::attr(href)").getall()
+
+        for program in programs:
+            req = scrapy.Request(response.urljoin(program), callback=self.sub_parse)
+            yield req
+
+        # process next result page
+        next_page = response.css("li.blaetterNaviNaechste > a::attr(href)").get()
+
+        if next_page:
+            yield scrapy.Request(response.urljoin(next_page), callback=self.parse)
+
+    def sub_parse(self, response):
+        #keys = response.css("th::text").getall()
+        #values = response.css("td::text").getall()
+        #values[keys.index("Laufzeit:")] = values[keys.index("Laufzeit:")].join(values[keys.index("Laufzeit:")+1])
+        #values = values[:keys.index("Laufzeit:")+1] + values[keys.index("Laufzeit:")+3:]
+        
+        #infos = dict(zip(keys, values))
+        infos = response.css("td, th").css("*::text").getall()
+
+        pdf_links = response.css(".Publication::attr(href)").getall()
+        pdf_links = [response.urljoin(x) for x in pdf_links]
+
+        yield {
+            "Name": infos[infos.index("Titel:") + 1],
+            "Beschreibung": infos[infos.index('Beschreibung\xa0(dt.):') + 1],
+            "Beginn": infos[infos.index("Beginn:\xa0") + 1],
+            "Ende": infos[infos.index("Ende:\xa0") + 1],
+            "Einrichtung": infos[infos.index("Ausf.\xa0Einrichtung:") + 1],
+            "Förderbereich": infos[infos.index("Themenfelder:") + 1],
+            "Förderansatz": infos[infos.index("Förderprogramme:") + 1],
+            "Schlagworte": infos[infos.index("Schlagworte:") + 1] if "Schlagworte:" in infos else "",
+            "pdf_links": pdf_links
+            }            
